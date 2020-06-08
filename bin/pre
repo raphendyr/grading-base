@@ -1,11 +1,19 @@
 #!/bin/sh
 
+error() {
+    if { >&9; } 2>&-; then
+        echo "[${0##*/}] $@" >&9
+    else
+        echo "[${0##*/}] $@" >&2
+    fi
+}
+
 class=""
 while [ "$1" ]; do
     case "$1" in
         -c) class="$class${class:+ }$2" ; shift 2 ;;
         --) shift ; break ;;
-        -*) echo "ERROR: Invalid option '$1' for $0" >&2 ; exit 64 ;;
+        -*) error "ERROR: Invalid option '$1' for $0" ; exit 64 ;;
         *) break ;;
     esac
 done

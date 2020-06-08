@@ -1,28 +1,50 @@
 #!/bin/sh
+
+if [ "${EUID:-${UID:-$(id -u)}}" -ne 0 ]; then
+    msg="ERROR: '${0##*/}' must be run as root"
+    { >&9; } 2>&- && echo "$msg" >&9 || echo "$msg" >&2
+    exit 64 # EX_USAGE
+fi
+
+nochown=
 out=/feedback/out
 err=/feedback/err
 user=nobody
 while [ $# -gt 0 ]; do
     case "$1" in
-        -o) out=$2 ; shift 2 ;;
-        -e) err=$2 ; shift 2 ;;
-        -u) user=$2 ; shift 2 ;;
+        -C) nochown="x" ;;
+        -o) out=$2 ; shift ;;
+        -e) err=$2 ; shift ;;
+        -u) user=$2 ; shift ;;
         --) shift ; break ;;
         -*) echo "ERROR: Invalid option '$1' for $0" >&2 ; exit 64 ;;
         *) break ;;
     esac
+    shift
 done
 
 [ $# -gt 0 ] || { echo "No command to execute." >&2; exit 64; }
 
 unset REC SID
-if [ "$user" = "root" ]; then
-    exec "$@" >> "$out" 2>> "$err"
-fi
+export OUTPUT_IS_CAPTURED=yes
 
-chown -R $user . >&2
-asuser -u $user -- \
-    "$@" >> "$out" 2>> "$err"
-RES=$?
-chown -R root . >&2
-exit $RES
+if [ "$user" = "root" ]; then
+    # NOTE: there is no point of limiting lines to fd 7, as root can write directly anyway
+    exec "$@" 9>&2 >> "$out" 2>> "$err"
+else
+    # Listen system errors from FD 9 (last 3 lines to limit abuse)
+    errpipe="/dev/shm/capture-$$-stderr"
+    mknod -m 0700 "$errpipe" p
+    { tail -n3 | sed -e 's/^/FROM capture: /' -e '$a\'; } <"$errpipe" >&2 & bg=$!
+    # allow modifying files
+    [ "$nochown" ] || chown -R "$user" . >&2
+    # execute as user
+    asuser -u "$user" -- "$@" >> "$out" 2>> "$err" 9> "$errpipe"
+    RES=$?
+    # revert owner
+    [ "$nochown" ] || chown -R root . >&2
+    # clean system error pipe
+    wait $bg; rm -f "$errpipe"
+    # exit
+    exit $RES
+fi
