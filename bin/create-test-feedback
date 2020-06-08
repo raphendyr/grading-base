@@ -17,8 +17,10 @@ for fn in */; do
     points=$(test -s $fn/points && cat $fn/points || echo 0)
     max_points=$(test -s $fn/max_points && cat $fn/max_points || echo 0)
     if [ "$status" != "passed" ]; then
-        error="alert alert-warning"
+        badge="danger"
+        error="alert alert-danger"
     else
+        badge="success"
         error=""
     fi
 
@@ -28,7 +30,8 @@ for fn in */; do
     total_max_points=$((total_max_points + max_points))
 
     if [ $max_points -gt 0 ]; then
-        title="$title ($points/$max_points)"
+        # label* are bootstrap3 and badge* are bootstrap4
+        title="$title <span class=\"badge badge-$badge badge-pill label label-$badge\">$points/$max_points</span>"
     fi
 
     echo "<h3>$title</h3>" >> out
@@ -38,7 +41,7 @@ for fn in */; do
             ;;
         passed|failed)
             if [ -s $fn/out.txt ]; then
-                cat $fn/out.txt | pre -c "$error" >> out
+                cat $fn/out.txt | pre >> out
             fi
             if [ -s $fn/err.txt ]; then
                 cat $fn/err.txt | pre -c "$error" >> out
