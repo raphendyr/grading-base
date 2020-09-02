@@ -1,30 +1,99 @@
 #!/bin/sh -e
 
-pfile=/feedback/points
-new_points=$1
-only_if=${2:-0}
+usage() {
+    (
+    echo "usage: $0 [add_points] [skip]"
+    echo "usage: $0 [-M] [-p add_points] [-s|-e skip|error]"
+    echo " -M             | always use /feedback/points, even when there is an active testcase"
+    echo " -p add_points  | add so many points. Required without testcase"
+    echo " -s skip        | if the skip is not zero (e.g. 1), then points is only added to the maximum points and not to the points"
+    echo " -e error       | alternative format for above"
+    echo ""
+    echo "  If there is an active testcase, the points are wrote to the testcase folder."
+    echo "  Otherwise or if -M is given, the points are added to the master points file."
+    echo "  Note that for testcases, the max points is set by the 'testcase' command"
+    ) >&2
+}
 
-if [ -z "$new_points" ]; then
-    echo "usage: $0 add_points [if_this_is_zero]" >&2
-    exit 64
+master_file=/feedback/points
+
+# Read arguments
+master=
+add_points=
+skip=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p) add_points=$2 ; shift ;;
+        -s|-e) skip=$2 ; shift ;;
+        -M) master="x" ;;
+        --) shift ; break ;;
+        -*)
+            echo "ERROR: Invalid option $1" >&2
+            usage
+            exit 64
+            ;;
+        *)
+            if [ -z "$add_points" ]; then
+                add_points=$1
+            elif [ -z "$skip" ]; then
+                skip=$1
+            else
+                echo "ERROR: too many positionals" >&2
+                usage
+                exit 64
+            fi
+            ;;
+    esac
+    shift
+done
+
+clean_points() {
+    case ${points:-} in
+        ''|*[!0-9]*) points=0 ;;
+    esac
+    case ${max_points:-} in
+        ''|*[!0-9]*) max_points=$points ;;
+    esac
+}
+
+if [ "$master" -o -z "$TESTCASE_ACTIVE" ]; then
+    # points is required when updating the master file
+    if [ -z "$add_points" ]; then
+        usage
+        exit 64
+    fi
+
+    # read current state
+    if [ -s "$master_file" ]; then
+        IFS=/ read points max_points < "$master_file"
+    fi
+    clean_points
+
+    # change state
+    max_points=$((max_points + add_points))
+    if [ $skip -eq 0 ]; then
+        points=$((points + add_points))
+    fi
+
+    # store state
+    echo "$points/$max_points" > "$master_file"
+else
+    out=$TESTCASE_DIR
+    if [ ${skip:-0} -eq 0 ]; then
+        # current points
+        points=$(cat "$out/points")
+        max_points=$(cat "$out/max_points")
+        clean_points
+        if [ -z "$add_points" ]; then
+            add_points=$max_points
+        fi
+        points=$((points + add_points))
+        [ $points -gt $max_points ] && points=$max_points
+
+        echo "passed" > "$out/status"
+        echo "$points" > "$out/points"
+    else
+        echo "failed" > "$out/status"
+        echo "0" > "$out/points"
+    fi
 fi
-
-# read current state
-if [ -s $pfile ]; then
-    IFS=/ read points max_points < $pfile
-fi
-case ${points:-} in
-    ''|*[!0-9]*) points=0 ;;
-esac
-case ${max_points:-} in
-    ''|*[!0-9]*) max_points=$points ;;
-esac
-
-# change state
-max_points=$((max_points + new_points))
-if [ $only_if -eq 0 ]; then
-    points=$((points + new_points))
-fi
-
-# store state
-echo "$points/$max_points" > $pfile

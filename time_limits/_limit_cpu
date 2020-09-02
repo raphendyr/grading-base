@@ -1,0 +1,13 @@
+#!/bin/sh
+
+ctime=$1 ; shift
+message=$1 ; shift
+
+ulimit -t $ctime
+"$@"
+ret=$?
+if [ "$ret" -eq 137 ]; then
+    echo "$message"
+    exit 201 # ^C
+fi
+exit $ret

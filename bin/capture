@@ -6,13 +6,17 @@ if [ "${EUID:-${UID:-$(id -u)}}" -ne 0 ]; then
     exit 64 # EX_USAGE
 fi
 
+master=
 nochown=
-out=/feedback/out
-err=/feedback/err
+workdir=
+out=
+err=
 user=nobody
 while [ $# -gt 0 ]; do
     case "$1" in
+        -M) master="x" ;;
         -C) nochown="x" ;;
+        -W) workdir=$2 ; shift ;;
         -o) out=$2 ; shift ;;
         -e) err=$2 ; shift ;;
         -u) user=$2 ; shift ;;
@@ -24,6 +28,21 @@ while [ $# -gt 0 ]; do
 done
 
 [ $# -gt 0 ] || { echo "No command to execute." >&2; exit 64; }
+
+if [ "$master" -o -z "${TESTCASE_ACTIVE:-}" ]; then
+    out=${out:-/feedback/out}
+    err=${err:-/feedback/err}
+else
+    out=${out:-$TESTCASE_DIR/out.txt}
+    err=${err:-$TESTCASE_DIR/err.txt}
+fi
+
+if [ "$workdir" ]; then
+    workdir=${workdir%/}
+    [ -e "$workdir" -a "${workdir#$PWD}" = "$workdir" ] && rm -rf "$workdir"
+    mkdir -p "${workdir%/*}"
+    cp -r "$PWD" "$workdir"
+fi
 
 unset REC SID
 export OUTPUT_IS_CAPTURED=yes

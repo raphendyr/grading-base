@@ -1,5 +1,6 @@
 #!/bin/sh
 
+master=
 element="h1"
 class=""
 stdout="${OUTPUT_IS_CAPTURED:+x}"
@@ -7,6 +8,7 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 		-c) class="$class${class:+ }$2" ; shift ;;
 		-e) element="$2" ; shift ;;
+		-M) master="x" ;;
 		-O) stdout="x" ;;
 		--) shift ; break ;;
 		-*) echo "ERROR: Invalid option '$1' for $0" >&2 ; exit 64 ;;
@@ -16,7 +18,12 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$stdout" -a -w /feedback ]; then
-	exec >> /feedback/out
+	if [ "$master" -o -z "$TESTCASE_ACTIVE" ]; then
+		exec >> /feedback/out
+	else
+		element=
+		exec > "$TESTCASE_DIR/title"
+	fi
 fi
 
 if [ "$element" ]; then

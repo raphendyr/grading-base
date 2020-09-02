@@ -1,4 +1,4 @@
-FROM debian:buster-20190812-slim
+FROM debian:buster-20200514-slim
 
 ENV LANG=C.UTF-8 USER=root HOME=/root
 
@@ -30,6 +30,9 @@ RUN apt_install \
  && mkdir -p /feedback /submission /exercise \
  && chmod 0770 /feedback \
 \
+ && :
+
+RUN : \
  # Change HOME for nobody from /nonexistent to /tmp
  && usermod -d /tmp nobody \
  # Create two more nobody users

@@ -1,22 +1,31 @@
 #!/bin/sh
 
+error() {
+    if { >&9; } 2>&-; then
+        echo "[${0##*/}] $@" >&9
+    else
+        echo "[${0##*/}] $@" >&2
+    fi
+}
+
 case=""
 space=""
 allspace=""
 pass="ok"
 fail=""
-while [ "$1" ]; do
+while [ $# -gt 0 ]; do
     case "$1" in
-        -c) case="x" ; shift ;;
-        -s) space="x" ; shift ;;
-        -S) allspace="x" ; shift ;;
-        -p) pass="$2"; shift 2 ;;
-        -P) pass="" ; shift ;;
-        -f) fail="$2" ; shift 2 ;;
+        -c) case="x" ;;
+        -s) space="x" ;;
+        -S) allspace="x" ;;
+        -p) pass="$2"; shift ;;
+        -P) pass="" ;;
+        -f) fail="$2" ; shift ;;
         --) shift ; break ;;
-        -*) echo "ERROR: Invalid option '$1' for $0" >&2 ; exit 64 ;;
+        -*) error "ERROR: Invalid option '$1' for $0" ; exit 64 ;;
         *) break ;;
     esac
+    shift
 done
 
 diff="diff --suppress-common-lines"
@@ -26,10 +35,26 @@ diff="diff --suppress-common-lines"
 
 in=$1
 expected=$2
-out=/tmp/stdio-diff.out
+out="/tmp/stdio-diff-$$.out"
 shift 2
 
-"$@" > $out < $in
+if [ -z "$in" -o ! -r "$in" ]; then
+    error "ERROR: In file '$in' does not exists or is not readable"
+    exit 66 # EX_NOINPUT
+elif [ -z "$expected" -o ! -r "$expected" ]; then
+    error "ERROR: expected file '$expected' does not exists or is not readable"
+    exit 66 # EX_NOINPUT
+elif [ -z "$*" ]; then
+    error "ERROR: no command to execute"
+    exit 64 # EX_USAGE
+fi
+
+"$@" > "$out" < "$in"
+RES=$?
+if [ $RES -ne 0 ]; then
+    echo "${fail:-The solution program returned with non-zero exit code}"
+    exit $RES
+fi
 
 if [ "$fail" ]; then
     $diff -q $out $expected > /dev/null

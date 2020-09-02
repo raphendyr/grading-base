@@ -1,0 +1,12 @@
+#!/bin/sh
+
+wtime=$1 ; shift
+message=$1 ; shift
+
+timeout -s KILL $wtime "$@"
+ret=$?
+if [ "$ret" -eq 137 ]; then
+    echo "$message"
+    exit 202
+fi
+exit $ret
